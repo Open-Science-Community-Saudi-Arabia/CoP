@@ -16,9 +16,10 @@ library(leaflet)
 library(tidyverse)
 library(here)
 library(janitor)
+library(maps)
 ```
 
-## Import the data
+## Import the data and clean it and save it
 
 ```{r}
 data <- read_delim(here("data","cop.tsv"), col_names = TRUE, skip = 1) 
@@ -43,14 +44,42 @@ all_regions_cop <- all_cop %>%
   filter(str_detect(region_served_specify_or_all,"all"))
 ```
 
-## Build a map
 
 ```{r}
 
 regionals_cop <- all_cop %>% 
-  filter(!grepl("all", region_served_specify_or_all))
+  filter(!grepl("all", region_served_specify_or_all)) %>% 
+  separate(region_served_specify_or_all, into = c("city", "country"), sep = ",") 
+
+#write_csv(regionals_cop, here("results", "cops_filtered.csv"))
 
 ```
 
+## Read filtered data and link coordinates
 
+```{r}
+filtered_cop <- read_csv(here("data", "cops_filtered.csv"))
+ 
+# import the world.cities data frame from 'maps'
+data(world.cities)
+
+latitude <- world.cities %>%
+    mutate(city = str_to_lower(name)) %>% 
+    mutate(country = str_to_lower(country.etc)) 
+
+## Join both data 
+cop <- filtered_cop %>%
+  mutate(city = str_to_lower(city)) %>%
+  mutate(country = str_to_lower(country)) %>%
+  left_join(., latitude, by = "city") %>% 
+  janitor::clean_names() %>% 
+  distinct(city, country_x, .keep_all = TRUE) %>% 
+  filter(!is.na(long))
+
+# # now map the result
+ leaflet(cop)%>%
+     addTiles() %>%
+    addMarkers(label = cop$name_x)
+
+```
 
